@@ -60,9 +60,17 @@ class TranslatorApp:
 
     # ---------- UI ----------
     def _build_ui(self):
+        # Uso grid en vez de pack para el layout principal: cada sección
+        # tiene una fila fija (0 a 4), sin depender del orden en que se
+        # agregan widgets — evita el problema de que un panel expandible
+        # se quede con todo el espacio antes de que la barra de botones
+        # pueda reservar el suyo.
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_rowconfigure(3, weight=1)  # fila del panel traducido
+
         topbar = tk.Frame(self.root, bg=PANEL, height=56)
-        topbar.pack(fill="x", side="top")
-        topbar.pack_propagate(False)
+        topbar.grid(row=0, column=0, sticky="ew")
+        topbar.grid_propagate(False)
 
         left = tk.Frame(topbar, bg=PANEL)
         left.pack(side="left", padx=20)
@@ -80,9 +88,9 @@ class TranslatorApp:
                                       bg=PANEL, fg=TEXT_LO)
         self.status_label.pack(side="right", padx=20)
 
-        # panel original (arriba, más chico)
+        # fila 1: panel original (arriba, más chico)
         original_wrap = tk.Frame(self.root, bg=PANEL)
-        original_wrap.pack(fill="x", side="top")
+        original_wrap.grid(row=1, column=0, sticky="ew")
         tk.Label(original_wrap, text="Original (inglés)", font=LABEL_FONT,
                  bg=PANEL, fg=TEXT_LO).pack(anchor="w", padx=22, pady=(12, 4))
 
@@ -91,23 +99,25 @@ class TranslatorApp:
                                      highlightthickness=0, state="disabled")
         self.original_box.pack(fill="x", padx=22, pady=(0, 14))
 
-        # separador
-        tk.Frame(self.root, bg=LINE, height=1).pack(fill="x")
+        # fila 2: separador
+        tk.Frame(self.root, bg=LINE, height=1).grid(row=2, column=0, sticky="ew")
 
-        # panel traducido (abajo, grande)
+        # fila 3: panel traducido (grande, se expande con la ventana)
         translated_wrap = tk.Frame(self.root, bg=BG)
-        translated_wrap.pack(fill="both", expand=True, side="top")
+        translated_wrap.grid(row=3, column=0, sticky="nsew")
+        translated_wrap.grid_columnconfigure(0, weight=1)
+        translated_wrap.grid_rowconfigure(1, weight=1)
         tk.Label(translated_wrap, text="Traducción (español)", font=LABEL_FONT,
-                 bg=BG, fg=TEXT_LO).pack(anchor="w", padx=22, pady=(14, 4))
+                 bg=BG, fg=TEXT_LO).grid(row=0, column=0, sticky="w", padx=22, pady=(14, 4))
 
         self.translated_box = tk.Text(translated_wrap, wrap="word", bg=BG, fg=TEXT_HI,
                                        font=("Segoe UI", self.font_size.get()), bd=0,
                                        highlightthickness=0, state="disabled")
-        self.translated_box.pack(fill="both", expand=True, padx=22, pady=(0, 14))
+        self.translated_box.grid(row=1, column=0, sticky="nsew", padx=22, pady=(0, 14))
 
-        # barra inferior de controles
+        # fila 4: barra inferior de controles (altura fija, siempre visible)
         controls = tk.Frame(self.root, bg=PANEL)
-        controls.pack(fill="x", side="bottom")
+        controls.grid(row=4, column=0, sticky="ew")
         inner = tk.Frame(controls, bg=PANEL)
         inner.pack(fill="x", padx=16, pady=12)
 
@@ -230,14 +240,26 @@ class TranslatorApp:
         self.translated_box.configure(state="disabled")
 
     # ---------- texto a voz ----------
+    @staticmethod
+    def _voice_lang(voice):
+        """Devuelve el idioma de una voz de pyttsx3 como string, sin
+        importar si el motor lo entrega como bytes (Windows/SAPI5) o
+        como str (Linux/espeak). Si no hay info, devuelve "".
+        """
+        if not getattr(voice, "languages", None):
+            return ""
+        lang = voice.languages[0]
+        if isinstance(lang, bytes):
+            return lang.decode(errors="ignore").lower()
+        return str(lang).lower()
+
     def _populate_voices(self):
         try:
             voices = self.tts_engine.getProperty("voices")
         except Exception:
             voices = []
-        spanish_voices = [v for v in voices if "es" in (v.languages[0].decode(errors="ignore")
-                          if v.languages else "").lower() or "spanish" in v.name.lower()
-                          or "español" in v.name.lower()]
+        spanish_voices = [v for v in voices if self._voice_lang(v).startswith("es")
+                          or "spanish" in v.name.lower() or "español" in v.name.lower()]
         candidates = spanish_voices if spanish_voices else voices
         self.voice_map = {v.name: v.id for v in candidates}
         names = list(self.voice_map.keys()) or ["(sin voces disponibles)"]
