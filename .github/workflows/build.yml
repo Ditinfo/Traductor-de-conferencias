@@ -1,0 +1,58 @@
+name: Compilar Traductor en Vivo (Windows)
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias de Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Compilar el ejecutable
+        run: pyinstaller --onefile --windowed --name TraductorEnVivo main.py
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compilar el instalador
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: Subir el .exe suelto como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: TraductorEnVivo-exe
+          path: dist/TraductorEnVivo.exe
+
+      - name: Subir el instalador como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: TraductorEnVivo-Setup
+          path: Output/TraductorEnVivo-Setup.exe
+
+      - name: Publicar como Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/TraductorEnVivo.exe
+            Output/TraductorEnVivo-Setup.exe
