@@ -8,6 +8,8 @@ Requisitos: ver requirements.txt / README.md
 """
 
 import datetime
+import os
+import sys
 import queue
 import threading
 import tkinter as tk
@@ -16,6 +18,32 @@ from tkinter import messagebox
 import speech_recognition as sr
 from deep_translator import GoogleTranslator
 import pyttsx3
+
+# ---------- Certificados SSL (necesario cuando se corre como .exe) ----------
+# PyInstaller no siempre empaqueta el archivo de certificados de la
+# librería `certifi`, lo que hace fallar (en silencio) cualquier pedido
+# HTTPS de `requests`/`deep-translator`, aunque internet funcione bien.
+# Esto le indica explícitamente dónde buscar esos certificados.
+try:
+    import certifi
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+except Exception:
+    pass
+
+# ---------- Registro de errores en un archivo de texto ----------
+# Si algo falla (traducción, micrófono, etc.), además de avisar en pantalla
+# se guarda el detalle acá, para poder diagnosticar sin depender de
+# capturas de pantalla.
+LOG_PATH = os.path.join(os.path.expanduser("~"), "TraductorEnVivo_errores.log")
+
+
+def log_error(context, exc):
+    try:
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.datetime.now()}] {context}: {type(exc).__name__}: {exc}\n")
+    except Exception:
+        pass
 
 # ---------- Paleta y estilo ----------
 BG = "#0F1216"
@@ -156,6 +184,7 @@ class TranslatorApp:
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
             self.root.after(0, self._mic_ready)
         except Exception as e:
+            log_error("inicialización de micrófono", e)
             self.root.after(0, lambda: self._mic_failed(str(e)))
 
     def _mic_ready(self):
@@ -219,8 +248,9 @@ class TranslatorApp:
     def _translate_and_display(self, text):
         try:
             translated = GoogleTranslator(source="en", target="es").translate(text)
-        except Exception:
-            translated = "[No se pudo traducir esta frase]"
+        except Exception as e:
+            log_error("traducción", e)
+            translated = f"[No se pudo traducir: {type(e).__name__}]"
 
         record = {
             "time": datetime.datetime.now().strftime("%H:%M:%S"),
