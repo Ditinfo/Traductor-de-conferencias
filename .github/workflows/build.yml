@@ -28,7 +28,7 @@ jobs:
           pip install pyinstaller
 
       - name: Compilar el ejecutable
-        run: pyinstaller --onefile --windowed --name TraductorEnVivo main.py
+        run: pyinstaller --onefile --windowed --name TraductorEnVivo --collect-data certifi main.py
 
       - name: Instalar Inno Setup
         run: choco install innosetup -y --no-progress
@@ -49,6 +49,8 @@ jobs:
           name: TraductorEnVivo-Setup
           path: Output/TraductorEnVivo-Setup.exe
 
+      # Si además le ponés una etiqueta de versión (ej: v1.0), esto publica
+      # los archivos en una página de "Release" con un link fijo para descargar.
       - name: Publicar como Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
